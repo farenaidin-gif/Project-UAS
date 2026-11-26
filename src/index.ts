@@ -1,3 +1,5 @@
+import * as readline from "readline/promises";
+import { stdin as input, stdout as output } from "process";
 import { tampilkanMenu } from "./menu";
 import {
   buatTransaksi,
@@ -6,27 +8,30 @@ import {
   hapusTransaksi,
 } from "./transaksi";
 
-console.log("=== SISTEM KASIR KANTIN v1.0 ===");
+const rl = readline.createInterface({ input, output });
 
-tampilkanMenu();
+async function jalankanAplikasi() {
+  let berjalan = true;
 
-// CREATE
-buatTransaksi(
-  [
-    { menuId: "M01", qty: 2 },
-    { menuId: "D01", qty: 2 },
-  ],
-  50000
-);
-buatTransaksi([{ menuId: "M02", qty: 1 }], 20000);
+  while (berjalan) {
+    console.log("\n====================================");
+    console.log("   SISTEM KASIR KANTIN INTERAKTIF   ");
+    console.log("====================================");
+    console.log("1. Lihat Daftar Menu");
+    console.log("2. Buat Transaksi Baru");
+    console.log("3. Lihat Riwayat Transaksi");
+    console.log("4. Update Jumlah Item Transaksi");
+    console.log("5. Hapus Transaksi");
+    console.log("0. Keluar");
+    console.log("====================================");
 
-// READ
-lihatSemuaTransaksi();
+    const pilihan = (await rl.question("Pilih menu (0-5): ")).trim();
 
-// UPDATE
-updateJumlahItem("TRX-001", "M01", 1);
-lihatSemuaTransaksi();
-
-// DELETE
-hapusTransaksi("TRX-002");
-lihatSemuaTransaksi();
+    switch (pilihan) {
+      case "1": {
+        tampilkanMenu();
+        
+      }
+    }
+  }
+}
