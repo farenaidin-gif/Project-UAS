@@ -1,96 +1,150 @@
+// Mengimpor struktur data transaksi dan fungsi pencarian menu
 import { OrderItem, Transaction } from "./models";
 import { cariMenuById } from "./menu";
 
-const daftarTransaksi: Transaction[] = [];
+// Array utama di memori untuk menampung seluruh riwayat transaksi
+export let daftarTransaksi: Transaction[] = [];
 
-// CREATE: Buat transaksi baru dan hitung pembayaran
+// Variabel penghitung urutan nomor transaksi otomatis
+let nomorUrut = 1;
+
+// Fungsi bantu untuk membuat format ID transaksi unik (contoh: TRX-001)
+function generateIdTransaksi(): string {
+  const id = `TRX-${String(nomorUrut).padStart(3, "0")}`;
+  nomorUrut++; // Menambah nilai urutan untuk transaksi berikutnya
+  return id;
+}
+
+// CREATE: Membuat transaksi baru, menghitung total & kembalian, lalu menyimpan ke array
 export function buatTransaksi(
   pesananInput: { menuId: string; qty: number }[],
   uangBayar: number
 ): Transaction | null {
-  const items: OrderItem[] = [];
+  const itemsValid: OrderItem[] = [];
+  let totalHarga = 0;
 
-  for (const p of pesananInput) {
-    const menu = cariMenuById(p.menuId);
-    if (!menu || p.qty <= 0) {
-      console.log(`Menu ${p.menuId} tidak valid atau jumlah porsi salah.`);
-      return null;
+  // Memeriksa setiap item pesanan dan menghitung subtotal masing-masing
+  for (const item of pesananInput) {
+    const menu = cariMenuById(item.menuId);
+    if (!menu) {
+      console.log(`Menu dengan ID '${item.menuId}' tidak ditemukan.`);
+      continue;
     }
-    items.push({
+    if (item.qty <= 0) {
+      console.log(`Jumlah pesanan untuk ${menu.nama} harus lebih dari 0.`);
+      continue;
+    }
+
+    const subtotal = menu.harga * item.qty;
+    totalHarga += subtotal; // Menggunakan operator compound (+=) untuk akumulasi total
+
+    itemsValid.push({
       menuId: menu.id,
-      namaMenu: menu.nama,
-      hargaSatuan: menu.harga,
-      qty: p.qty,
-      subtotal: menu.harga * p.qty,
+      nama: menu.nama,
+      harga: menu.harga,
+      qty: item.qty,
+      subtotal,
     });
   }
 
-  const totalHarga = items.reduce((sum, item) => sum + item.subtotal, 0);
+  // Validasi jika tidak ada satu pun item valid yang dipesan
+  if (itemsValid.length === 0) {
+    console.log("Transaksi dibatalkan: tidak ada item valid.");
+    return null;
+  }
+
+  // Validasi kecukupan uang pembayaran dari pembeli
   if (uangBayar < totalHarga) {
     console.log(`Pembayaran kurang! Total: Rp${totalHarga}, Dibayar: Rp${uangBayar}`);
     return null;
   }
 
+  // Menghitung uang kembalian dan menyusun objek transaksi baru
+  const kembalian = uangBayar - totalHarga;
   const transaksiBaru: Transaction = {
-    idTransaksi: `TRX-${String(daftarTransaksi.length + 1).padStart(3, "0")}`,
-    waktu: new Date().toLocaleString("id-ID"),
-    items,
+    id: generateIdTransaksi(),
+    tanggal: new Date().toLocaleString("id-ID"),
+    items: itemsValid,
     totalHarga,
     uangBayar,
-    kembalian: uangBayar - totalHarga,
+    kembalian,
     status: "Lunas",
   };
 
+  // Menyimpan objek transaksi baru ke dalam array daftarTransaksi
   daftarTransaksi.push(transaksiBaru);
-  console.log(`Transaksi ${transaksiBaru.idTransaksi} berhasil disimpan.`);
+  console.log(`Transaksi ${transaksiBaru.id} berhasil disimpan.`);
   return transaksiBaru;
 }
 
-// READ: Tampilkan semua riwayat transaksi dan rincian item
+// READ: Menampilkan seluruh riwayat transaksi beserta rincian itemnya
 export function lihatSemuaTransaksi(): void {
   console.log("\n=== RIWAYAT TRANSAKSI KANTIN ===");
   if (daftarTransaksi.length === 0) {
     console.log("Belum ada transaksi.");
     return;
   }
+
+  // Melakukan perulangan pada setiap transaksi untuk ditampilkan ke terminal
   daftarTransaksi.forEach((trx) => {
     console.log(
-      `[${trx.idTransaksi}] ${trx.waktu} | Total: Rp${trx.totalHarga} | Bayar: Rp${trx.uangBayar} | Kembali: Rp${trx.kembalian} | Status: ${trx.status}`
+      `[${trx.id}] ${trx.tanggal} | Total: Rp${trx.totalHarga} | Bayar: Rp${trx.uangBayar} | Kembalian: Rp${trx.kembalian} | Status: ${trx.status}`
     );
     trx.items.forEach((item) => {
-      console.log(`   - ${item.namaMenu} x${item.qty} = Rp${item.subtotal}`);
+      console.log(`   - ${item.nama} x${item.qty} = Rp${item.subtotal}`);
     });
   });
 }
 
-// UPDATE: Ubah jumlah porsi pada transaksi yang sudah ada
+// UPDATE: Mengubah jumlah porsi suatu item pada transaksi tertentu dan menghitung ulang totalnya
 export function updateJumlahItem(
-  idTransaksi: string,
+  transaksiId: string,
   menuId: string,
   qtyBaru: number
 ): boolean {
-  const trx = daftarTransaksi.find((t) => t.idTransaksi === idTransaksi);
-  if (!trx || trx.status === "Dibatalkan" || qtyBaru <= 0) return false;
+  const trx = daftarTransaksi.find(
+    (t) => t.id.toUpperCase() === transaksiId.toUpperCase()
+  );
+  if (!trx) {
+    console.log(`Transaksi ${transaksiId} tidak ditemukan.`);
+    return false;
+  }
 
-  const item = trx.items.find((i) => i.menuId.toUpperCase() === menuId.toUpperCase());
-  if (!item) return false;
+  const item = trx.items.find(
+    (i) => i.menuId.toUpperCase() === menuId.toUpperCase()
+  );
+  if (!item) {
+    console.log(`Menu ${menuId} tidak ada di transaksi ${transaksiId}.`);
+    return false;
+  }
 
+  if (qtyBaru <= 0) {
+    console.log("Jumlah baru harus lebih dari 0.");
+    return false;
+  }
+
+  // Memperbarui jumlah porsi, subtotal item, total harga, dan uang kembalian
   item.qty = qtyBaru;
-  item.subtotal = item.hargaSatuan * qtyBaru;
+  item.subtotal = item.harga * qtyBaru;
   trx.totalHarga = trx.items.reduce((sum, i) => sum + i.subtotal, 0);
   trx.kembalian = trx.uangBayar - trx.totalHarga;
-  console.log(`Transaksi ${idTransaksi} berhasil diperbarui.`);
+
+  console.log(`Item ${item.nama} pada ${trx.id} berhasil diubah menjadi ${qtyBaru} porsi.`);
   return true;
 }
 
-// DELETE: Hapus transaksi berdasarkan ID
-export function hapusTransaksi(idTransaksi: string): boolean {
-  const index = daftarTransaksi.findIndex((t) => t.idTransaksi === idTransaksi);
+// DELETE: Menghapus data transaksi dari array berdasarkan ID transaksi
+export function hapusTransaksi(transaksiId: string): boolean {
+  const index = daftarTransaksi.findIndex(
+    (t) => t.id.toUpperCase() === transaksiId.toUpperCase()
+  );
   if (index === -1) {
-    console.log(`Transaksi ${idTransaksi} tidak ditemukan.`);
+    console.log(`Transaksi ${transaksiId} tidak ditemukan.`);
     return false;
   }
+
+  // Menghapus 1 elemen transaksi pada posisi index menggunakan splice
   daftarTransaksi.splice(index, 1);
-  console.log(`Transaksi ${idTransaksi} berhasil dihapus.`);
+  console.log(`Transaksi ${transaksiId} berhasil dihapus.`);
   return true;
 }
